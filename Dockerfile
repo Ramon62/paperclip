@@ -1,6 +1,6 @@
 FROM node:lts-trixie-slim AS base
-ARG USER_UID=0
-ARG USER_GID=0
+ARG USER_UID=1000
+ARG USER_GID=1000
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl git wget ripgrep python3 \
   && mkdir -p -m 755 /etc/apt/keyrings \
@@ -14,10 +14,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable
 
-# Modify the existing node user/group to have the specified UID/GID to match host user
-RUN usermod -u $USER_UID --non-unique node \
-  && groupmod -g $USER_GID --non-unique node \
-  && usermod -g $USER_GID -d /paperclip node
+# [CORRECCIÓN 1] Comentamos el usermod para evitar el 'exit code 8'
+# RUN usermod -u $USER_UID --non-unique node \
+#   && groupmod -g $USER_GID --non-unique node \
+#   && usermod -g $USER_GID -d /paperclip node
 
 FROM base AS deps
 WORKDIR /app
@@ -50,13 +50,14 @@ RUN pnpm --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production
-ARG USER_UID=0
-ARG USER_GID=0
+ARG USER_UID=1000
+ARG USER_GID=1000
 WORKDIR /app
-COPY --chown=node:node --from=build /app /app
+
+# [CORRECCIÓN 2] Quitamos el '--chown=node:node' para que los archivos pertenezcan a root
+COPY --from=build /app /app
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
-  && mkdir -p /paperclip \
-  && chown node:node /paperclip
+  && mkdir -p /paperclip
 
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -75,9 +76,12 @@ ENV NODE_ENV=production \
   PAPERCLIP_DEPLOYMENT_EXPOSURE=private \
   OPENCODE_ALLOW_ALL_MODELS=true
 
+# [CORRECCIÓN 3] Mantenemos el volumen comentado
 #VOLUME ["/paperclip"]
 EXPOSE 3100
 
-ENTRYPOINT ["docker-entrypoint.sh"]
+# [CORRECCIÓN 4] Anulamos el entrypoint oficial porque forzaba el cambio al usuario 'node' y nos quitaba permisos
+# ENTRYPOINT ["docker-entrypoint.sh"]
+
 USER root
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
