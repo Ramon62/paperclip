@@ -79,4 +79,5 @@ ENV NODE_ENV=production \
 EXPOSE 3100
 
 ENTRYPOINT ["docker-entrypoint.sh"]
+USER root
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
