@@ -1,6 +1,6 @@
 FROM node:lts-trixie-slim AS base
-ARG USER_UID=1000
-ARG USER_GID=1000
+ARG USER_UID=0
+ARG USER_GID=0
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl git wget ripgrep python3 \
   && mkdir -p -m 755 /etc/apt/keyrings \
@@ -50,8 +50,8 @@ RUN pnpm --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production
-ARG USER_UID=1000
-ARG USER_GID=1000
+ARG USER_UID=0
+ARG USER_GID=0
 WORKDIR /app
 COPY --chown=node:node --from=build /app /app
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
